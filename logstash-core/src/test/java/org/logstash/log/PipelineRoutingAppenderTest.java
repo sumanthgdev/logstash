@@ -1,13 +1,12 @@
 package org.logstash.log;
 
-import org.apache.logging.log4j.EventLogger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.AppenderControl;
 import org.apache.logging.log4j.core.config.Configuration;
-import org.apache.logging.log4j.junit.LoggerContextRule;
+import org.apache.logging.log4j.core.test.junit.LoggerContextRule;
 import org.apache.logging.log4j.message.StructuredDataMessage;
-import org.apache.logging.log4j.test.appender.ListAppender;
+import org.apache.logging.log4j.core.test.appender.ListAppender;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -39,11 +38,12 @@ public class PipelineRoutingAppenderTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void routingTest() {
         final String pipelineId = "test_pipeline";
         StructuredDataMessage msg = new StructuredDataMessage("Test", "This is a test", "Service");
         org.apache.logging.log4j.ThreadContext.put("pipeline.id", pipelineId);
-        EventLogger.logEvent(msg);
+        org.apache.logging.log4j.EventLogger.logEvent(msg);
 
         this.app = findListAppender(pipelineId);
         assertEquals("appender-" + pipelineId, app.getName());
