@@ -188,6 +188,11 @@ dependencies {
     } else {
         api files(customJRubyDir + "/maven/jruby-complete/target/jruby-complete-${customJRubyVersion}.jar")
     }
+    // pin version of jackson-dataformat-yaml's transitive dependency "snakeyaml": jars here sit on the
+    // system classpath and JRuby 9.2's psych rejects SnakeYAML 2.x ("bad SnakeYAML version")
+    implementation('org.yaml:snakeyaml') {
+        version { strictly '1.33' }
+    }
     implementation group: 'com.google.guava', name: 'guava', version: '32.1.3-jre'
     // WARNING: DO NOT UPGRADE "google-java-format"
     // later versions require GPL licensed code in javac-shaded that is
