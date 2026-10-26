@@ -220,7 +220,7 @@
     "skip-list": false
   },
   "logstash-filter-useragent": {
-    "default-plugins": false,
+    "default-plugins": true,
     "skip-list": false
   },
   "logstash-filter-uuid": {
@@ -228,7 +228,7 @@
     "skip-list": false
   },
   "logstash-filter-xml": {
-    "default-plugins": false,
+    "default-plugins": true,
     "core-specs": true,
     "skip-list": false
   },
@@ -237,11 +237,11 @@
     "skip-list": true
   },
   "logstash-input-azure_event_hubs": {
-    "default-plugins": false,
+    "default-plugins": true,
     "skip-list": false
   },
   "logstash-input-beats": {
-    "default-plugins": false,
+    "default-plugins": true,
     "core-specs": true,
     "skip-list": false
   },
@@ -291,7 +291,7 @@
     "skip-list": false
   },
   "logstash-input-graphite": {
-    "default-plugins": false,
+    "default-plugins": true,
     "skip-list": false
   },
   "logstash-input-heartbeat": {
@@ -363,7 +363,7 @@
     "skip-list": false
   },
   "logstash-input-s3": {
-    "default-plugins": false,
+    "default-plugins": true,
     "skip-list": false
   },
   "logstash-input-snmp": {
@@ -388,7 +388,7 @@
     "skip-list": false
   },
   "logstash-input-tcp": {
-    "default-plugins": false,
+    "default-plugins": true,
     "core-specs": true,
     "skip-list": false
   },
@@ -409,7 +409,7 @@
     "skip-list": false
   },
   "logstash-integration-jdbc": {
-    "default-plugins": false,
+    "default-plugins": true,
     "skip-list": false
   },
   "logstash-integration-kafka": {
@@ -421,7 +421,7 @@
     "skip-list": false
   },
   "logstash-output-cloudwatch": {
-    "default-plugins": false,
+    "default-plugins": true,
     "skip-list": false
   },
   "logstash-output-csv": {
@@ -512,7 +512,7 @@
     "skip-list": false
   },
   "logstash-output-s3": {
-    "default-plugins": false,
+    "default-plugins": true,
     "skip-list": false
   },
   "logstash-output-slack": {
