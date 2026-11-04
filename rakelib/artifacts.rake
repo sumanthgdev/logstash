@@ -88,6 +88,13 @@ namespace "artifact" do
     @exclude_paths << 'vendor/**/gems/*/test/**/*'
     @exclude_paths << 'vendor/**/gems/*/spec/**/*'
 
+    # the build runs bundler on the stock JRuby, whose default jruby-openssl is 0.11.0, so the locked 0.15.7
+    # gets installed again (with its own BouncyCastle) in vendor/bundle; the distribution ships it as the
+    # patched default gem of both JRuby homes instead, see jrubyStdlibPatch.gradle
+    @exclude_paths << 'vendor/bundle/jruby/*/gems/jruby-openssl-*'
+    @exclude_paths << 'vendor/bundle/jruby/*/gems/jruby-openssl-*/**/*'
+    @exclude_paths << 'vendor/bundle/jruby/*/specifications/jruby-openssl-*.gemspec'
+
     @exclude_paths
   end
 
