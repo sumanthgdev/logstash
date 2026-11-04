@@ -1,0 +1,164 @@
+/*
+ * JRuby 9.2.20.1 bundles jruby-openssl 0.11.0 with BouncyCastle 1.68 (jdk15on) and psych with SnakeYAML 1.26,
+ * all with known CVEs. This patches both JRuby homes of the distribution: vendor/jruby (used by bin/ruby and
+ * bin/logstash-plugin) and META-INF/jruby.home inside jruby-complete.jar (used by bin/logstash).
+ *
+ * - jruby-openssl 0.15.7, the last line supporting JRuby 9.2, with BouncyCastle 1.86 (jdk18on)
+ * - SnakeYAML 1.33, matching logstash-core's pin: JRuby 9.2's psych rejects SnakeYAML 2.x
+ */
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath "de.undercouch:gradle-download-task:4.0.4"
+    }
+}
+
+import de.undercouch.gradle.tasks.download.Download
+import de.undercouch.gradle.tasks.download.Verify
+
+import java.nio.charset.StandardCharsets
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
+
+String jrubyOpensslVersion = '0.15.7'
+String jrubyOpensslSha256 = 'dcaa7aff243223bc860f16611ef9f8acebda1f84a4c6e3b4f0dca83476a972c8'
+String bouncyCastleVersion = '1.86'
+String snakeyamlVersion = '1.33'
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    jrubyStdlibPatch {
+        transitive = false
+    }
+}
+
+dependencies {
+    ['bcprov-jdk18on', 'bcpkix-jdk18on', 'bcutil-jdk18on', 'bctls-jdk18on'].each {
+        jrubyStdlibPatch "org.bouncycastle:${it}:${bouncyCastleVersion}"
+    }
+    jrubyStdlibPatch "org.yaml:snakeyaml:${snakeyamlVersion}"
+}
+
+def jrubyOpensslGem = file("${projectDir}/vendor/_/jruby-openssl-${jrubyOpensslVersion}-java.gem")
+def jrubyOpensslLib = file("${buildDir}/jruby-openssl-${jrubyOpensslVersion}/lib")
+def jrubyOpensslGemspec = file("${projectDir}/tools/jruby-stdlib-patch/jruby-openssl-${jrubyOpensslVersion}-java.gemspec")
+
+tasks.register("downloadJRubyOpenssl", Download) {
+    description "Download jruby-openssl ${jrubyOpensslVersion}"
+    src "https://rubygems.org/downloads/jruby-openssl-${jrubyOpensslVersion}-java.gem"
+    dest jrubyOpensslGem
+    onlyIfNewer true
+}
+
+tasks.register("verifyJRubyOpenssl", Verify) {
+    dependsOn downloadJRubyOpenssl
+    src jrubyOpensslGem
+    algorithm 'SHA-256'
+    checksum jrubyOpensslSha256
+}
+
+tasks.register("unpackJRubyOpenssl") {
+    dependsOn verifyJRubyOpenssl
+    inputs.file(jrubyOpensslGem)
+    outputs.dir(jrubyOpensslLib)
+    doLast {
+        def unpackDir = jrubyOpensslLib.parentFile
+        delete unpackDir
+        copy {
+            from tarTree(jrubyOpensslGem)
+            include 'data.tar.gz'
+            into unpackDir
+        }
+        copy {
+            from tarTree("${unpackDir}/data.tar.gz")
+            include 'lib/**'
+            // the gem's own BouncyCastle jars are replaced by the jrubyStdlibPatch configuration
+            exclude 'lib/org/**'
+            into unpackDir
+        }
+        delete "${unpackDir}/data.tar.gz"
+    }
+}
+
+static void deleteRecursively(Path path) {
+    if (Files.exists(path)) {
+        Files.walk(path).sorted(Comparator.reverseOrder()).forEach { Files.delete(it) }
+    }
+}
+
+static void replaceInFile(Path path, String from, String to) {
+    String text = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+    if (!text.contains(to)) {
+        if (!text.contains(from)) {
+            throw new GradleException("Unable to patch ${path}: '${from}' not found")
+        }
+        Files.write(path, text.replace(from, to).getBytes(StandardCharsets.UTF_8))
+    }
+}
+
+/**
+ * Patches a JRuby home. {@code jrubydir} regenerates the .jrubydir directory listings that JRuby needs
+ * to resolve directories inside a jar.
+ */
+def patchJRubyHome = { Path home, boolean jrubydir ->
+    Path stdlib = home.resolve('lib/ruby/stdlib')
+    Path specs = home.resolve('lib/ruby/gems/shared/specifications/default')
+    Set<Path> touched = [stdlib, stdlib.resolve('org'), stdlib.resolve('org/yaml'), stdlib.resolve('org/yaml/snakeyaml'), specs] as Set
+
+    ['org/bouncycastle', 'org/yaml/snakeyaml/1.26', 'jopenssl', 'jopenssl19', 'jopenssl21', 'jopenssl22', 'jopenssl23',
+     'openssl', 'jopenssl.jar', 'openssl.rb'].each { deleteRecursively(stdlib.resolve(it)) }
+    Files.deleteIfExists(specs.resolve('jruby-openssl-0.11.0-java.gemspec'))
+
+    Map<String, File> added = [:]
+    fileTree(jrubyOpensslLib).visit { if (!it.directory) added[it.relativePath.pathString] = it.file }
+    configurations.jrubyStdlibPatch.resolvedConfiguration.resolvedArtifacts.each {
+        def id = it.moduleVersion.id
+        added["${id.group.replace('.', '/')}/${id.name}/${id.version}/${id.name}-${id.version}.jar".toString()] = it.file
+    }
+    added.each { relative, source ->
+        Path target = stdlib.resolve(relative)
+        Files.createDirectories(target.parent)
+        Files.copy(source.toPath(), target, StandardCopyOption.REPLACE_EXISTING)
+        for (Path dir = target.parent; dir != stdlib; dir = dir.parent) {
+            touched << dir
+        }
+    }
+    Files.copy(jrubyOpensslGemspec.toPath(), specs.resolve(jrubyOpensslGemspec.name), StandardCopyOption.REPLACE_EXISTING)
+
+    replaceInFile(stdlib.resolve('jopenssl/version.rb'), "BOUNCY_CASTLE_VERSION = '1.83'", "BOUNCY_CASTLE_VERSION = '${bouncyCastleVersion}'")
+    replaceInFile(stdlib.resolve('psych/versions.rb'), "DEFAULT_SNAKEYAML_VERSION = '1.26'", "DEFAULT_SNAKEYAML_VERSION = '${snakeyamlVersion}'")
+    replaceInFile(specs.resolve('psych-3.2.0-java.gemspec'), 'jar org.yaml:snakeyaml, 1.26', "jar org.yaml:snakeyaml, ${snakeyamlVersion}")
+
+    if (jrubydir) {
+        touched.findAll { Files.isDirectory(it) }.each { dir ->
+            def children = Files.list(dir).withCloseable { stream ->
+                stream.collect { it.fileName.toString().replaceAll('/$', '') }.findAll { !it.startsWith('.') }.sort()
+            }
+            Files.write(dir.resolve('.jrubydir'), (['..', '.'] + children).collect { it + '\n' }.join('').getBytes(StandardCharsets.UTF_8))
+        }
+    }
+}
+
+ext.patchJRubyComplete = { File jar ->
+    FileSystems.newFileSystem(URI.create("jar:${jar.toURI()}"), [:]).withCloseable { fs ->
+        patchJRubyHome(fs.getPath('/META-INF/jruby.home'), true)
+    }
+}
+
+tasks.named("downloadAndInstallJRuby").configure {
+    dependsOn unpackJRubyOpenssl
+    inputs.files(configurations.jrubyStdlibPatch)
+    inputs.dir(jrubyOpensslLib)
+    inputs.file(jrubyOpensslGemspec)
+    doLast {
+        patchJRubyHome(file("${projectDir}/vendor/jruby").toPath(), false)
+    }
+}

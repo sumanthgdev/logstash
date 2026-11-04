@@ -66,8 +66,13 @@ tasks.named("compileJava").configure {
 }
 
 tasks.register("copyRuntimeLibs", Copy) {
+    dependsOn ':unpackJRubyOpenssl'
     into project.file('lib/jars/')
     from configurations.compileClasspath, configurations.runtimeClasspath
+    // patch the JRuby home embedded in jruby-complete, see jrubyStdlibPatch.gradle
+    doLast {
+        rootProject.patchJRubyComplete(project.file("lib/jars/jruby-complete-${jrubyVersion}.jar"))
+    }
 }
 
 // copy jar file into the gem lib dir but without the version number in filename
@@ -193,7 +198,9 @@ dependencies {
     implementation('org.yaml:snakeyaml') {
         version { strictly '1.33' }
     }
-    implementation group: 'com.google.guava', name: 'guava', version: '32.1.3-jre'
+    implementation group: 'com.google.guava', name: 'guava', version: '33.7.2-jre'
+    // javax.annotation.Nullable; guava 33 no longer brings jsr305 transitively
+    implementation 'com.google.code.findbugs:jsr305:3.0.2'
     // WARNING: DO NOT UPGRADE "google-java-format"
     // later versions require GPL licensed code in javac-shaded that is
     // Apache2 incompatible
@@ -205,8 +212,6 @@ dependencies {
     testImplementation("org.apache.logging.log4j:log4j-core-test:${log4jVersion}") {
         exclude group: 'junit', module: 'junit'
     }
-    // previously provided transitively by guava 24
-    testImplementation 'com.google.code.findbugs:jsr305:3.0.2'
     testImplementation 'junit:junit:4.12'
     testImplementation 'net.javacrumbs.json-unit:json-unit:2.3.0'
     testImplementation 'org.elasticsearch:securemock:1.2'

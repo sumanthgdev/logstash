@@ -36,6 +36,7 @@ plugins {
 
 apply plugin: 'de.undercouch.download'
 apply from: "rubyUtils.gradle"
+apply from: "jrubyStdlibPatch.gradle"
 
 import org.yaml.snakeyaml.Yaml
 import de.undercouch.gradle.tasks.download.Download
